@@ -200,37 +200,44 @@ jobs:
 
       - name: Create release
         if: steps.upstream.outputs.need == 'true' && success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ steps.date.outputs.date }}-${{ github.run_number }}
-          name: "360T7 固件 ${{ steps.date.outputs.date }} #${{ github.run_number }}"
-          overwrite_files: true
-          body: |
-            ## 360T7 (MT7981B) 固件
-
-            - 编译日期：${{ steps.date.outputs.date }}
-            - 分区布局：`${{ inputs.layout || 'uboot-108m' }}`
-            - 上游源码：chasey-dev/immortalwrt-mt798x-rebase @ ${{ steps.upstream.outputs.ref }} (${{ steps.upstream.outputs.sha }})
-            - 固件版本：ImmortalWrt 25.12
-
-            ### 本次布局的文件
-            - `uboot-108m`（hanwckf 108M 自定义 U-Boot 布局）：`*-squashfs-factory.bin`（U-Boot 首次刷写）、`*-squashfs-sysupgrade.bin`（系统内升级）
-            - `fit-108m`（OpenWrt U-Boot 布局）：`*-squashfs-sysupgrade.itb` + `-bl31-uboot.fip`、`-preloader.bin`
-            - `ubi-127m`（新版全 UBI 布局）：`*-squashfs-sysupgrade.itb`
-
-            ### 刷机（uboot-108m / 108M 大分区 U-Boot）
-            1. 网线连接 360T7 的 LAN 口，电脑设置静态 IP `192.168.1.2/24`；
-            2. 断电，按住 reset 键上电约 5 秒，进入 U-Boot Web 恢复页面（默认 `http://192.168.1.1`）；
-            3. 首次刷写：上传 `*-squashfs-factory.bin`（会重建 UBI，清空原数据）；
-            4. 已有系统内升级：上传 `*-squashfs-sysupgrade.bin`（可保留配置）；
-            5. 等待写入完成后设备自动重启。
-
-            > 仅适用于 108M 自定义 U-Boot 布局（ubi 从 `0x580000` 开始、大小 108M，kernel/rootfs 卷）。
-            > 不要与 OpenWrt U-Boot 布局（fit-108m）固件混刷。详细说明见仓库 README。
-          files: |
-            openwrt/bin/targets/mediatek/filogic/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="build-${{ steps.date.outputs.date }}-${{ github.run_number }}"
+          TITLE="360T7 固件 ${{ steps.date.outputs.date }} #${{ github.run_number }}"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          cat > "$NOTES" <<'EOF'
+          ## 360T7 (MT7981B) 固件
+
+          - 编译日期：${{ steps.date.outputs.date }}
+          - 分区布局：`${{ inputs.layout || 'uboot-108m' }}`
+          - 上游源码：chasey-dev/immortalwrt-mt798x-rebase @ ${{ steps.upstream.outputs.ref }} (${{ steps.upstream.outputs.sha }})
+          - 固件版本：ImmortalWrt 25.12
+
+          ### 本次布局的文件
+          - `uboot-108m`（hanwckf 108M 自定义 U-Boot 布局）：`*-squashfs-factory.bin`（U-Boot 首次刷写）、`*-squashfs-sysupgrade.bin`（系统内升级）
+          - `fit-108m`（OpenWrt U-Boot 布局）：`*-squashfs-sysupgrade.itb` + `-bl31-uboot.fip`、`-preloader.bin`
+          - `ubi-127m`（新版全 UBI 布局）：`*-squashfs-sysupgrade.itb`
+
+          ### 刷机（uboot-108m / 108M 大分区 U-Boot）
+          1. 网线连接 360T7 的 LAN 口，电脑设置静态 IP `192.168.1.2/24`；
+          2. 断电，按住 reset 键上电约 5 秒，进入 U-Boot Web 恢复页面（默认 `http://192.168.1.1`）；
+          3. 首次刷写：上传 `*-squashfs-factory.bin`（会重建 UBI，清空原数据）；
+          4. 已有系统内升级：上传 `*-squashfs-sysupgrade.bin`（可保留配置）；
+          5. 等待写入完成后设备自动重启。
+
+          > 仅适用于 108M 自定义 U-Boot 布局（ubi 从 `0x580000` 开始、大小 108M，kernel/rootfs 卷）。
+          > 不要与 OpenWrt U-Boot 布局（fit-108m）固件混刷。详细说明见仓库 README。
+          EOF
+          cd openwrt/bin/targets/mediatek/filogic
+          shopt -s nullglob
+          assets=( ./*.itb ./*.fip ./*.bin ./*.manifest ./profiles.json ./SHA256SUMS ./*.buildinfo )
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file "$NOTES" "${assets[@]}"
+          fi
 
       - name: Record upstream commit
         if: steps.upstream.outputs.need == 'true' && success()
