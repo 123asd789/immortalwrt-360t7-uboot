@@ -160,10 +160,10 @@ git clone -b 25.12 --depth 1 https://github.com/chasey-dev/immortalwrt-mt798x-re
 
 for p in patches/*.patch; do [ -e "$p" ] && git -C openwrt apply --3way "$(realpath "$p")"; done
 
-cp configs/360t7-uboot-108m.config openwrt/.config
 cd openwrt
 ./scripts/feeds update -a
 ./scripts/feeds install -a
+cp ../configs/360t7-uboot-108m.config .config
 make defconfig
 make -j"$(nproc)" download
 make -j"$(nproc)" V=s

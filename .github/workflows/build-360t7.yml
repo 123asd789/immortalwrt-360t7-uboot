@@ -98,6 +98,14 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Update feeds
+        if: steps.upstream.outputs.need == 'true'
+        run: |
+          set -euo pipefail
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
       - name: Prepare config
         if: steps.upstream.outputs.need == 'true'
         env:
@@ -130,14 +138,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Update feeds
-        if: steps.upstream.outputs.need == 'true'
-        run: |
-          set -euo pipefail
-          cd openwrt
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
       - name: Download sources
         if: steps.upstream.outputs.need == 'true'
         run: |
@@ -151,6 +151,14 @@ jobs:
           set -euo pipefail
           cd openwrt
           make -j"$(nproc)" 2>&1 | tee build.log
+
+      - name: Show detailed error (on failure)
+        if: failure() && steps.upstream.outputs.need == 'true'
+        run: |
+          set -uo pipefail
+          [ -f openwrt/.config ] || { echo "no .config, failure happened before compile"; exit 0; }
+          cd openwrt
+          make -j1 V=s 2>&1 | tail -n 250 || true
 
       - name: Collect images
         if: steps.upstream.outputs.need == 'true'
