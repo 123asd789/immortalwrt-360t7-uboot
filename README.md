@@ -2,153 +2,152 @@
 
 基于 [chasey-dev/immortalwrt-mt798x-rebase](https://github.com/chasey-dev/immortalwrt-mt798x-rebase)
 （ImmortalWrt 25.12 + MTK OpenWrt Feeds 补丁）的 **360T7（MT7981B，128M SPI-NAND）**
-云编译仓库，默认产物适配 **hanwckf 360T7 U-Boot 的 108M 大分区布局**。
+云编译仓库，默认产物适配 **hanwckf/bl-mt798x 的 108M 自定义 U-Boot（大分区）布局**，
+输出 **`*-squashfs-factory.bin`** 和 **`*-squashfs-sysupgrade.bin`** 两类固件。
 
-> 一句话：Fork 本仓库 → 在 Actions 里点一次「Run workflow」→ 到 Releases 下载
-> `immortalwrt-mediatek-filogic-qihoo_360t7-squashfs-sysupgrade.itb`，进 U-Boot Web 恢复页刷入即可。
+> 上游仓库自带的 `qihoo_360t7` 是 OpenWrt U-Boot 布局（FIT / `sysupgrade.itb`），
+> 与 hanwckf 108M 自定义 U-Boot **不兼容**。本仓库通过补丁新增了
+> `qihoo_360t7-uboot` 设备：UBI 内使用 `kernel` / `rootfs` 卷 + ubiblock 启动，
+> 对应 MTK U-Boot 的 tar / UBI 固件格式。
 
 ---
 
-## 一、适配的分区布局
+## 一、三种布局与产物
 
-### 默认：`uboot-108m`（hanwckf U-Boot 108M 大分区）
+| layout | 适用 U-Boot | 产物 | 说明 |
+| --- | --- | --- | --- |
+| **`uboot-108m`（默认）** | hanwckf/bl-mt798x「108M 大分区」自定义 U-Boot（2022/2023 版均可） | `*-squashfs-factory.bin`、`*-squashfs-sysupgrade.bin` | 本仓库补丁新增的 `qihoo_360t7-uboot` 设备，kernel/rootfs UBI 卷 |
+| `fit-108m` | OpenWrt/ImmortalWrt 官方 U-Boot（本仓库 `fit-108m` 构建出的 `-bl31-uboot.fip`） | `*-squashfs-sysupgrade.itb`、`-bl31-uboot.fip`、`-preloader.bin` | 上游原生 `qihoo_360t7` 设备，FIT + fitblk |
+| `ubi-127m` | 新版 OpenWrt 全 UBI 布局 U-Boot（127M） | `*-squashfs-sysupgrade.itb` | 上游 `qihoo_360t7-ubi` 设备 |
 
-与 `hanwckf/bl-mt798x` 中 `mt7981_360t7_defconfig` 的 `MTDPARTS_DEFAULT` 完全一致
-（`1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),108M(ubi),1M(stock-config),512k(stock-factory),4M(stock-log)`），
-也与上游 `mt7981b-qihoo-360t7.dts` 的 `qihoo_360t7` 设备定义一一对应：
+> ⚠️ 三种布局互不兼容，**不要跨布局强刷**（`sysupgrade -F` 也不行）。
+
+### 为什么 108M U-Boot 要用 `factory.bin` / `sysupgrade.bin`？
+
+- `*-sysupgrade.bin`：本质是 tar 包，内含 `kernel` 与 `rootfs` 镜像；
+  2022 年之后的 MTK U-Boot 可直接用 `mtkupgrade fw` 或 Web 页面刷入，系统内升级也用它。
+- `*-factory.bin`：直接把 `kernel` + `rootfs` 和 UBI 头打包成原始 UBI 镜像，
+  按原样写入闪存，适合首次刷写（会重建 UBI，清掉原厂残留数据）。
+- `*-sysupgrade.itb`：FIT 格式。**旧版 MTK U-Boot（如 bl-mt798x 20220606）没有 FIT 支持，会刷入失败**；
+  只有 2025 年后的 MTK U-Boot 或 OpenWrt 官方 U-Boot 才支持。
+
+参考：[MediaTek Filogic 常见固件格式说明](https://blog.imouto.in/post/openwrt/2025/fw-layouts-on-mtk-filogic/)。
+
+---
+
+## 二、108M 布局分区表
+
+与 `hanwckf/bl-mt798x` 的 `mt7981_360t7_defconfig` 中
+`MTDPARTS_DEFAULT`（`1024k(bl2),512k(u-boot-env),2048k(factory),2048k(fip),108M(ubi),1M(stock-config),512k(stock-factory),4M(stock-log)`）
+逐项一致：
 
 | 分区 | 起始偏移 | 大小 | 说明 |
 | --- | --- | --- | --- |
 | `bl2` | `0x000000` | 1 MiB | preloader（只读） |
-| `u-boot-env` | `0x100000` | 512 KiB | U-Boot 环境变量 |
-| `factory` | `0x180000` | 2 MiB | 出厂校准数据（只读） |
-| `fip` | `0x380000` | 2 MiB | U-Boot FIP 镜像 |
-| `ubi` | `0x580000` | **108 MiB** | 固件所在 UBI，`fit` 卷存放内核 + 根文件系统 |
+| `u-boot-env` | `0x100000` | 512 KiB | U-Boot 环境变量（只读） |
+| `Factory` | `0x180000` | 2 MiB | 出厂校准 / MAC（只读） |
+| `fip` | `0x380000` | 2 MiB | U-Boot FIP（只读） |
+| `ubi` | `0x580000` | **108 MiB** | 固件区，内含 `kernel`、`rootfs`、`rootfs_data` 卷 |
 | `stock-config` | `0x7180000` | 1 MiB | 原厂残留（只读） |
 | `stock-factory` | `0x7280000` | 512 KiB | 原厂残留（只读） |
-| `stock-log` | `0x7300000` | 4 MiB 起 | 原厂日志区（只读） |
+| `stock-log` | `0x7300000` | 4 MiB | 原厂残留（只读） |
 
-固件只关心 `ubi` 分区：它从 `0x580000` 开始、大小 108 MiB，内核 FIT 镜像写入
-`fit` UBI 卷，由 U-Boot 引导。**只要你的 360T7 刷的是这个 108M 布局的 U-Boot，本仓库产物即可直接使用。**
-
-### 可选：`ubi-127m`（OpenWrt 新版全 UBI 布局）
-
-上游 PR #22797 之后的新布局：`bl2` 占 `0x0-0x100000`，其余 127 MiB 整体为 UBI，
-内含 `factory` / `fip` / `fit` / `ubootenv` / `ubootenv2` 卷。该布局需要先刷入配套的
-`preloader.bin` + `bl31-uboot.fip`，**不能与 108M 布局混刷**。只有明确知道自己用的是新布局时才选它。
-
-两套布局的配置分别位于 [`configs/360t7-uboot-108m.config`](configs/360t7-uboot-108m.config)
-和 [`configs/360t7-ubi-127m.config`](configs/360t7-ubi-127m.config)，对应上游设备
-`qihoo_360t7` 与 `qihoo_360t7-ubi`。
+启动流程：U-Boot 从 `kernel` 卷读取 FIT 内核引导，内核根文件系统为 `rootfs` 卷的
+squashfs（ubiblock），`rootfs_data` 卷作 overlay。
 
 ---
 
-## 二、仓库做了什么
+## 三、仓库实现了什么
 
-上游仓库本身已经包含 360T7 的设备定义与 108M 分区 DTS，这个仓库把「能编译、能刷机、
-能长期跟进上游」固化下来：
-
-- **GitHub Actions 云编译**：Ubuntu 22.04 runner 上完整编译，产物含 sysupgrade 固件、
-  U-Boot FIP、preloader、manifest、`SHA256SUMS`；
-- **按布局出包**：`workflow_dispatch` 可选 `uboot-108m` / `ubi-127m`，配置与设备自动对应；
-- **自动跟进上游**：每天北京时间 02:00 检查上游提交，有更新才编译并发布 Release；
-- **可扩展**：`patches/*.patch` 在编译前自动应用，`extra_packages` 输入可临时加包；
-- **可复现**：Release 附带 `config.buildinfo` / `feeds.buildinfo` 与校验和。
+- [`patches/0001-mediatek-add-360t7-uboot-layout.patch`](patches/0001-mediatek-add-360t7-uboot-layout.patch)：
+  新增 `mt7981b-qihoo-360t7-uboot.dts`（108M 分区、`kernel`/`rootfs` 卷、ubiblock 启动、MAC/EEPROM 取自 Factory），
+  并在 `filogic.mk` 注册设备 `qihoo_360t7-uboot`：
+  `IMAGES := sysupgrade.bin factory.bin`、`append-ubi` 生成 factory、`sysupgrade-tar` 生成 sysupgrade、
+  `IMAGE_SIZE := 110592k`（108M）。
+- 云编译流程：克隆上游 → 应用补丁 → 选配设备 → feeds → 下载 → 编译 → 发布；
+  每天检查上游更新，有新提交才编译。
+- 布局可切换：`uboot-108m`（默认）/ `fit-108m` / `ubi-127m`。
 
 ---
 
-## 三、快速开始
+## 四、快速开始
 
-1. 右上角 **Fork** 本仓库到你的账号（公开仓库的 Actions 额度免费，推荐公开）。
-2. 进入你的 Fork → **Actions** → 左侧 `Build ImmortalWrt for 360T7 (U-Boot 108M layout)` → 右侧 **Run workflow**。
-   - `layout` 保持默认 `uboot-108m`；其它参数可留空；
+1. 右上角 **Fork** 本仓库（公开仓库 Actions 免费，推荐公开）。
+2. 进入 Fork → **Actions** → `Build ImmortalWrt for 360T7 (U-Boot layout)` → **Run workflow**：
+   - `layout` 保持默认 **`uboot-108m`**；
+   - `source_ref`、`extra_packages` 可留空；
    - 点击 **Run workflow** 开始编译（首次约 2–4 小时）。
-3. 编译完成后：
-   - Actions 页面可下载 **Artifacts**（保留 90 天）；
-   - 或到 **Releases** 下载正式产物（长期保留）。
-
-> 私有仓库会消耗 Actions 时长（免费额度 2000 分钟/月，一次编译约 2–4 小时），
-> 且单次任务上限 6 小时。公开仓库无此顾虑，因此建议公开。
+3. 编译完成后：Actions 页面下载 **Artifacts**，或到 **Releases** 下载正式产物。
 
 ---
 
-## 四、产物说明
+## 五、产物说明（uboot-108m）
 
-以 `qihoo_360t7`（108M 布局）为例，`bin/targets/mediatek/filogic/` 下会有：
+`bin/targets/mediatek/filogic/` 下：
 
 | 文件 | 用途 |
 | --- | --- |
-| `...-squashfs-sysupgrade.itb` | **刷机用固件**：U-Boot Web 恢复页刷写，或系统内升级 |
-| `...-initramfs-recovery.itb` | 内存运行恢复系统（救砖/排障，重启不保留） |
-| `...-bl31-uboot.fip` | U-Boot FIP 镜像（更新 Bootloader 用，谨慎） |
-| `...-preloader.bin` | BL2 preloader（更新 Bootloader 用，谨慎） |
-| `...manifest` | 本次固件包含的软件包清单 |
-| `profiles.json` | 设备/镜像描述 |
+| `...-qihoo_360t7-uboot-squashfs-factory.bin` | **首次刷写**：U-Boot Web 页面上传，重建 UBI |
+| `...-qihoo_360t7-uboot-squashfs-sysupgrade.bin` | **系统内升级**：U-Boot Web 页面或 LuCI/SSH 升级 |
+| `...-manifest` | 固件包清单 |
 | `config.buildinfo` / `feeds.buildinfo` | 编译配置与 feed 版本 |
-| `SHA256SUMS` | 全部产物校验和 |
+| `SHA256SUMS` | 校验和 |
 
 ---
 
-## 五、刷机指南（108M 布局）
+## 六、刷机步骤（108M 自定义 U-Boot）
 
-### 0. 确认设备与布局
+### 0. 前提
 
-- 适用于 **360T7（MT7981B，128M NAND）**，且已刷入 **108M 大分区 U-Boot**（hanwckf bl-mt798x 系列）。
-- 如果设备还在原厂固件 / 36M 分区，需要先通过 TTL（或免拆方式）刷入 108M 布局的 U-Boot。
-  **本仓库不包含、也不负责 Bootloader 刷写步骤**，相关操作有变砖风险，请自行评估。
+- 360T7 已刷入 **hanwckf/bl-mt798x 108M 大分区 U-Boot**（原厂 / 36M 分区设备需先用
+  TTL 或免拆方式刷入对应 U-Boot，本仓库不提供该步骤，风险自负）。
 
-### 1. U-Boot Web 恢复页刷写
+### 1. 首次刷入（U-Boot Web 恢复）
 
-1. 网线连接 360T7 的 **LAN 口**，电脑网卡设为静态 IP `192.168.1.2`，掩码 `255.255.255.0`。
-2. 设备断电，按住 **reset** 键再上电，约 5 秒后松开（启动失败时 U-Boot 也会自动进入 Web 恢复）。
-3. 浏览器打开 `http://192.168.1.1`，选择固件文件
-   `immortalwrt-mediatek-filogic-qihoo_360t7-squashfs-sysupgrade.itb`，上传并确认刷写。
-4. 等待写入完成，设备自动重启；首次启动约 1–3 分钟，完成后 LuCI 默认地址
-   `http://192.168.1.1`（或 DHCP 下发的网关地址）。
+1. 网线连接 360T7 的 **LAN 口**，电脑网卡设为静态 IP `192.168.1.2/24`；
+2. 设备断电，按住 **reset** 键上电约 5 秒后松开（启动失败时 U-Boot 也会自动进入）；
+3. 浏览器打开 `http://192.168.1.1`，上传 `*-squashfs-factory.bin`，确认刷写；
+4. 等待写入并自动重启，首次启动约 1–3 分钟；默认 LuCI `http://192.168.1.1`。
 
 ### 2. 系统内升级
 
-设备已运行 ImmortalWrt 时：
+- **LuCI**：系统 → 备份/升级 → 上传 `*-squashfs-sysupgrade.bin`（按需保留配置）；
+- **SSH**：`sysupgrade -v /tmp/*-sysupgrade.bin`（`-n` 不保留配置）；
+- **U-Boot Web**：也可以直接上传 `*-squashfs-sysupgrade.bin` 刷写。
 
-- **LuCI**：系统 → 备份/升级 → 选择 `*-squashfs-sysupgrade.itb` → 按需勾选「保留配置」；
-- **SSH**：把固件传到 `/tmp` 后执行 `sysupgrade -v /tmp/xxx-sysupgrade.itb`
-  （保留配置；加 `-n` 表示不保留）。
-
-### 3. 验证布局（刷机后）
+### 3. 验证
 
 ```bash
 cat /proc/mtd
-# mtd5: 0006c00000 00020000 "ubi"    # 108M 布局应为 0x6c00000
+# mtd4: 0006c00000 00020000 "ubi"     # 108M = 0x6c00000
+ubinfo -a                              # 可见 kernel / rootfs / rootfs_data 卷
 ```
 
 ### 4. 救砖
 
-- 能进 U-Boot Web 恢复页：直接重新上传固件；
-- 不能进：TTL 串口（115200 8N1）接 GND/TX/RX，配合 `mtk_uartboot` 引导 BL2，再按上面步骤刷写。
-
-> ⚠️ **禁止跨布局强刷**。108M 与 127M 布局的 UBI 起点/大小不同，混刷会无法启动；
-> 不要使用 `sysupgrade -F` 跳过平台校验。
+- 能进 U-Boot Web：重新上传 `factory.bin` / `sysupgrade.bin`；
+- 不能进：TTL（115200 8N1）配合 `mtk_uartboot` 引导 BL2 后再刷。
 
 ---
 
-## 六、自定义编译
+## 七、自定义编译
 
 | 需求 | 做法 |
 | --- | --- |
-| 加装软件包 | Run workflow 时填 `extra_packages`，如 `luci-app-ttyd luci-app-upnp` |
+| 加装软件包 | Run workflow 时填 `extra_packages`，如 `luci-app-ttyd` |
 | 默认集成软件包 | 在 `configs/360t7-uboot-108m.config` 追加 `CONFIG_PACKAGE_xxx=y` |
-| 修改内核/设备树 | 在 `patches/` 放 `0001-xxx.patch`，编译前会自动应用（见 [patches/README.md](patches/README.md)） |
-| 切换上游分支 | `source_ref` 填其它分支（如 `master`，需自行确认可用性） |
-| 定时自动编译 | 已内置每天 02:00（北京时间）检查上游，有新提交才编译 |
+| 修改内核/设备树 | 在 `patches/` 放 `0001-xxx.patch`（按文件名顺序 `git apply --3way`） |
+| 切换布局 | workflow 的 `layout` 选 `fit-108m` 或 `ubi-127m` |
+| 定时编译 | 已内置每天北京时间 02:00 检查上游 |
 
-修改 workflow 或配置后，可直接推送触发（push 到 `main` 不会自动编译，需要手动 Run workflow，
-或在仓库 Settings 里按需调整触发器）。
+> 当前默认构建**不生成 U-Boot 文件**（`-bl31-uboot.fip` / `-preloader.bin`），
+> 因为你已经刷好 108M 自定义 U-Boot，不需要再用 OpenWrt U-Boot 的 FIP 覆盖它。
 
 ---
 
-## 七、本地编译
+## 八、本地编译
 
-建议 Ubuntu 22.04/24.04 或 Debian 12，磁盘 ≥ 30 GB，内存 ≥ 4 GB（推荐 8 GB）。
+建议 Ubuntu 22.04/24.04 或 Debian 12，磁盘 ≥ 30 GB，内存 ≥ 4 GB。
 
 ```bash
 sudo apt update
@@ -159,8 +158,7 @@ git clone https://github.com/<你的用户名>/immortalwrt-360t7-uboot.git
 cd immortalwrt-360t7-uboot
 git clone -b 25.12 --depth 1 https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git openwrt
 
-# 应用本地补丁（没有可跳过）
-for p in patches/*.patch; do [ -e "$p" ] && git -C openwrt apply "$(realpath "$p")"; done
+for p in patches/*.patch; do [ -e "$p" ] && git -C openwrt apply --3way "$(realpath "$p")"; done
 
 cp configs/360t7-uboot-108m.config openwrt/.config
 cd openwrt
@@ -175,35 +173,31 @@ make -j"$(nproc)" V=s
 
 ---
 
-## 八、上游与版本
+## 九、上游与版本
 
 - 上游：`chasey-dev/immortalwrt-mt798x-rebase`，分支 `25.12`（ImmortalWrt 25.12 + MTK feeds 补丁）；
-- 本仓库不修改上游源码逻辑，只负责配置、补丁挂载、编译与发布；
-- 编译通过后会在 Release 中记录上游提交号，`.last_sync_commit` 用于定时任务去重。
+- 本仓库只做配置、补丁、编译与发布，不改动上游原有设备逻辑；
+- Release 会记录上游提交号，`.last_sync_commit` 用于定时任务去重。
 
 ---
 
-## 九、FAQ
+## 十、FAQ
 
-**Q：为什么默认是 108M 而不是 127M？**
-A：中文社区 360T7 最常见的 U-Boot 是 hanwckf 的 108M 大分区版本；两者 DTS 分区表逐字节一致，
-直接选择上游 `qihoo_360t7` 设备即可，无需额外补丁。新布局用户改用 `ubi-127m` 即可。
+**Q：为什么默认不是 `sysupgrade.itb`？**
+A：108M 自定义 U-Boot（尤其是 bl-mt798x 20220606）不支持 FIT 固件，刷 `itb` 会失败；
+`factory.bin` / `sysupgrade.bin` 才是它认识的格式。如果你的 U-Boot 是 2025 年后支持 FIT 的版本，
+可以选 `fit-108m`，但那属于 OpenWrt U-Boot 布局，不能和 108M 自定义布局混用。
 
 **Q：能刷回 360 官方固件吗？**
-A：可以，但需要 360 官方固件镜像并通过 U-Boot Web 恢复/TTL 刷写；本仓库不提供官方固件，也不对回刷后果负责。
+A：可以，需官方固件镜像并通过 U-Boot/TTL 刷写；本仓库不提供官方固件。
 
 **Q：编译失败怎么办？**
-A：Actions 会附带 `build-logs-*` 产物（`build.log`、`logs/`）。另外上游 `dl/` 下载偶发失败时，
-重跑 workflow 即可；持续失败请提 Issue 并附日志片段。
-
-**Q：想加 OpenClash/PassWall 等插件？**
-A：在 `extra_packages` 里加对应包名（需上游 feed 中存在）；如果来自第三方 feed，
-请自行在编译流程中增加 feed 源（修改 `feeds.conf.default` 需放进 `patches/` 或改 workflow）。
+A：Actions 会附带 `build-logs-*`（`build.log`、`logs/`）。上游下载偶发失败时重跑即可。
 
 ---
 
-## 十、免责声明
+## 十一、免责声明
 
-- 本项目仅提供编译流程与配置文件，固件版权归 ImmortalWrt / OpenWrt 及各上游项目（GPL-2.0）；
-- 刷机有风险（变砖、丢数据、失去保修），请自行承担；刷机前务必备份原厂分区（factory 校准数据等）；
-- 仓库脚本与文档以 MIT 许可发布，不提供任何明示或暗示担保。
+- 固件版权归 ImmortalWrt / OpenWrt 及各上游项目（GPL-2.0）；
+- 刷机有风险（变砖、丢数据、失保），请自行承担；刷机前务必备份原厂 factory 分区；
+- 仓库脚本与文档以 MIT 发布，不提供任何担保。
