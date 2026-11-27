@@ -1,9 +1,9 @@
 diff --git a/target/linux/mediatek/dts/mt7981b-qihoo-360t7-uboot.dts b/target/linux/mediatek/dts/mt7981b-qihoo-360t7-uboot.dts
 new file mode 100644
-index 0000000000..1e978e234f
+index 0000000000..fe6d27ddfd
 --- /dev/null
 +++ b/target/linux/mediatek/dts/mt7981b-qihoo-360t7-uboot.dts
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,269 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 +
 +/dts-v1/;
@@ -271,28 +271,10 @@ index 0000000000..1e978e234f
 +&wifi {
 +	status = "okay";
 +
-+	#address-cells = <1>;
-+	#size-cells = <0>;
-+
-+	nvmem-cells = <&eeprom_factory_0>;
-+	nvmem-cell-names = "eeprom";
-+
-+	band@0 {
-+		reg = <0>;
-+
-+		nvmem-cells = <&macaddr_factory_8000 (2)>;
-+		nvmem-cell-names = "mac-address";
-+	};
-+
-+	band@1 {
-+		reg = <1>;
-+
-+		nvmem-cells = <&macaddr_factory_8000 (3)>;
-+		nvmem-cell-names = "mac-address";
-+	};
++	mediatek,mtd-eeprom = <&factory 0x0>;
 +};
 diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
-index a9005e9d06..6441c486a6 100644
+index a9005e9d06..6aabe0c1f5 100644
 --- a/target/linux/mediatek/image/filogic.mk
 +++ b/target/linux/mediatek/image/filogic.mk
 @@ -4145,3 +4145,26 @@
@@ -306,7 +288,7 @@ index a9005e9d06..6441c486a6 100644
 +  DEVICE_VARIANT := (U-Boot layout)
 +  DEVICE_DTS := mt7981b-qihoo-360t7-uboot
 +  DEVICE_DTS_DIR := ../dts
-+  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
++  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware
 +  SUPPORTED_DEVICES += qihoo,360t7-uboot 360,t7
 +  UBINIZE_OPTS := -E 5
 +  BLOCKSIZE := 128k
