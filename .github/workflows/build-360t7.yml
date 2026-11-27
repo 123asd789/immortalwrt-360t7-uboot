@@ -132,12 +132,22 @@ jobs:
             echo "CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y"
             echo "CONFIG_TARGET_PROFILE=\"DEVICE_${device}\""
           } >> .config
+          # 360T7 无线驱动链（MT7981: mt7915e + 固件）。外部导入的完整配置里
+          # 若有 "is not set" 行会压制设备默认选择，这里先删掉再显式启用。
+          sed -i -E '/^# CONFIG_PACKAGE_(kmod-(cfg80211|mac80211|mt76[a-z0-9-]*|mt7915e|mt7981-firmware)|mt7981-wo-firmware) is not set$/d' .config
+          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware; do
+            echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+          done
           for pkg in ${EXTRA}; do
             echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           make defconfig
           grep -q "^CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y$" .config \
             || { echo "设备 ${device} 未被选中"; exit 1; }
+          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware; do
+            grep -q "^CONFIG_PACKAGE_${pkg}=y$" .config \
+              || { echo "WiFi 包 ${pkg} 未被启用"; exit 1; }
+          done
           {
             echo "### 配置摘要"
             echo '```'
