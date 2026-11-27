@@ -98,6 +98,18 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Add mt76 driver package (OpenWrt 25.12)
+        if: steps.upstream.outputs.need == 'true'
+        run: |
+          set -euo pipefail
+          # 该 rebase 仓库未包含 OpenWrt 的 mt76 驱动包，这里从 ImmortalWrt 25.12 补上
+          git clone --depth 1 --filter=blob:none --sparse \
+            --branch openwrt-25.12 https://github.com/immortalwrt/immortalwrt.git /tmp/imm-mt76
+          cd /tmp/imm-mt76
+          git sparse-checkout set package/kernel/mt76
+          cp -a package/kernel/mt76 "$GITHUB_WORKSPACE/openwrt/package/kernel/"
+          test -f "$GITHUB_WORKSPACE/openwrt/package/kernel/mt76/Makefile"
+
       - name: Update feeds
         if: steps.upstream.outputs.need == 'true'
         run: |
@@ -134,8 +146,8 @@ jobs:
           } >> .config
           # 360T7 无线驱动链（MT7981: mt7915e + 固件）。外部导入的完整配置里
           # 若有 "is not set" 行会压制设备默认选择，这里先删掉再显式启用。
-          sed -i -E '/^# CONFIG_PACKAGE_(kmod-(cfg80211|mac80211|mt76[a-z0-9-]*|mt7915e|mt7981-firmware)|mt7981-wo-firmware) is not set$/d' .config
-          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware; do
+          sed -i -E '/^# CONFIG_PACKAGE_(kmod-(cfg80211|mac80211|mt76[a-z0-9-]*|mt7915e|mt7981-firmware)|wifi-scripts) is not set$/d' .config
+          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware wifi-scripts; do
             echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           for pkg in ${EXTRA}; do
@@ -144,7 +156,7 @@ jobs:
           make defconfig
           grep -q "^CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y$" .config \
             || { echo "设备 ${device} 未被选中"; exit 1; }
-          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware; do
+          for pkg in kmod-cfg80211 kmod-mac80211 kmod-mt7915e kmod-mt7981-firmware wifi-scripts; do
             grep -q "^CONFIG_PACKAGE_${pkg}=y$" .config \
               || { echo "WiFi 包 ${pkg} 未被启用"; exit 1; }
           done
