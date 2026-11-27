@@ -37,7 +37,7 @@ concurrency:
 
 env:
   TZ: Asia/Shanghai
-  UPSTREAM_REPO: chasey-dev/immortalwrt-mt798x-rebase
+  UPSTREAM_REPO: 123asd789/immortalwrt-mt798x-rebase
 
 jobs:
   build:
@@ -188,9 +188,14 @@ jobs:
         run: |
           set -uo pipefail
           [ -f openwrt/build.log ] || { echo "no build.log"; exit 0; }
-          tail -n 300 openwrt/build.log
+          tail -n 120 openwrt/build.log
           echo "--- matching errors ---"
           grep -nE "Error [0-9]+|error:|\\*\\*\\*" openwrt/build.log | tail -n 40 || true
+          cd openwrt || exit 0
+          echo "=== verbose retry: conninfra ==="
+          make package/mtk/drivers/conninfra/compile V=s 2>&1 | tail -n 240 || true
+          echo "=== verbose retry: mt_wifi ==="
+          make package/mtk/drivers/mt_wifi/compile V=s 2>&1 | tail -n 240 || true
 
       - name: Collect images
         if: steps.upstream.outputs.need == 'true'
