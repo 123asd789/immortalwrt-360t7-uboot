@@ -114,21 +114,28 @@ jobs:
         run: |
           set -euo pipefail
           case "${LAYOUT}" in
-            uboot-108m) cp configs/360t7-uboot-108m.config openwrt/.config ;;
-            fit-108m)   cp configs/360t7-fit-108m.config   openwrt/.config ;;
-            ubi-127m)   cp configs/360t7-ubi-127m.config   openwrt/.config ;;
+            uboot-108m) config=configs/360t7-uboot-108m.config; device=qihoo_360t7-uboot ;;
+            fit-108m)   config=configs/360t7-fit-108m.config;   device=qihoo_360t7 ;;
+            ubi-127m)   config=configs/360t7-ubi-127m.config;   device=qihoo_360t7-ubi ;;
             *) echo "未知布局: ${LAYOUT}"; exit 1 ;;
           esac
+          cp "$config" openwrt/.config
           cd openwrt
+          # 配置文件可以来自任意 menuconfig，设备/目标行一律以 layout 为准，
+          # 避免用户沿用 stock/FIT 设备导致布局不匹配。
+          sed -i -e '/^CONFIG_TARGET_PROFILE=/d' \
+                 -e '/^CONFIG_TARGET_mediatek_filogic_DEVICE_/d' \
+                 -e '/^# CONFIG_TARGET_mediatek_filogic_DEVICE_/d' .config
+          {
+            echo "CONFIG_TARGET_mediatek=y"
+            echo "CONFIG_TARGET_mediatek_filogic=y"
+            echo "CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y"
+            echo "CONFIG_TARGET_PROFILE=\"DEVICE_${device}\""
+          } >> .config
           for pkg in ${EXTRA}; do
             echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           make defconfig
-          case "${LAYOUT}" in
-            uboot-108m) device=qihoo_360t7-uboot ;;
-            fit-108m)   device=qihoo_360t7 ;;
-            ubi-127m)   device=qihoo_360t7-ubi ;;
-          esac
           grep -q "^CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y$" .config \
             || { echo "设备 ${device} 未被选中"; exit 1; }
           {
