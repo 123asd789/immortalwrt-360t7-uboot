@@ -149,19 +149,13 @@ jobs:
             CONFIG_PACKAGE_kmod-ipt-nat; do
             echo "${opt}=y" >> .config
           done
-          # MTK_MT_WIFI 是 tristate 且必须为 m，否则会编成 built-in 而不生成 .ko
-          echo "CONFIG_MTK_MT_WIFI=m" >> .config
-          # WARP 是整数/字符串配置（非 bool）
-          echo "CONFIG_WARP_VERSION=2" >> .config
           for pkg in ${EXTRA}; do
             echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           make defconfig
-          # WARP_CHIPSET 不是 Kconfig 符号，warp Makefile 直接从 .config 读取；
-          # MT7981 需要 WARP_VERSION=2 + warp_mt7981.o
-          sed -i '/^CONFIG_WARP_CHIPSET=/d' .config
-          echo 'CONFIG_WARP_CHIPSET="mt7981"' >> .config
-          echo 'CONFIG_WARP_VERSION=2' >> .config
+          # mt_wifi / warp / conninfra 的 MT7981 完整配置片段
+          # （含 MT_AP_SUPPORT=m、WARP_VERSION=2、WARP_CHIPSET="mt7981" 等）
+          cat ../configs/mtwifi-mt7981.config >> .config
           grep -q "^CONFIG_TARGET_mediatek_filogic_DEVICE_${device}=y$" .config \
             || { echo "设备 ${device} 未被选中"; exit 1; }
           grep -q "^CONFIG_PACKAGE_kmod-mt_wifi=y$" .config \
@@ -176,8 +170,12 @@ jobs:
             || { echo "WARP_CHIPSET 未设置为 mt7981"; exit 1; }
           grep -q "^CONFIG_WARP_VERSION=2$" .config \
             || { echo "WARP_VERSION 未设置为 2"; exit 1; }
+          grep -q "^CONFIG_MTK_MT_AP_SUPPORT=m$" .config \
+            || { echo "MT_AP_SUPPORT 未设置为 m"; exit 1; }
           grep -q "^CONFIG_MTK_MT_WIFI=m$" .config \
             || { echo "MTK_MT_WIFI 未设置为 m"; exit 1; }
+          grep -q "^CONFIG_MTK_WIFI_MODE_AP=m$" .config \
+            || { echo "WIFI_MODE_AP 未设置为 m"; exit 1; }
           for pkg in mtwifi-cfg-ucode luci-app-mtwifi-cfg; do
             grep -q "^CONFIG_PACKAGE_${pkg}=y$" .config \
               || { echo "WiFi 包 ${pkg} 未被启用"; exit 1; }
