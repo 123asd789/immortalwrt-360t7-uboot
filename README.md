@@ -140,6 +140,11 @@ ubinfo -a                              # 可见 kernel / rootfs / rootfs_data �
 | 切换布局 | workflow 的 `layout` 选 `fit-108m` 或 `ubi-127m` |
 | 定时编译 | 已内置每天北京时间 02:00 检查上游 |
 
+> configs/*.config 可以直接用 make menuconfig 导出的完整 .config。
+> workflow 在 make defconfig 之前会删除其中的 CONFIG_TARGET_* 目标/设备行，
+> 并按所选 layout 强制设备（uboot-108m 固定为 qihoo_360t7-uboot），
+> 因此配置里只需要保留软件包选项；从 stock/FIT 设备导出的配置也能直接复用。
+
 > 当前默认构建**不生成 U-Boot 文件**（`-bl31-uboot.fip` / `-preloader.bin`），
 > 因为你已经刷好 108M 自定义 U-Boot，不需要再用 OpenWrt U-Boot 的 FIP 覆盖它。
 
