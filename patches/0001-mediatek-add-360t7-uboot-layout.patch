@@ -292,10 +292,10 @@ index 0000000000..1e978e234f
 +	};
 +};
 diff --git a/target/linux/mediatek/image/filogic.mk b/target/linux/mediatek/image/filogic.mk
-index a9005e9d06..c4c56a4fa9 100644
+index a9005e9d06..6441c486a6 100644
 --- a/target/linux/mediatek/image/filogic.mk
 +++ b/target/linux/mediatek/image/filogic.mk
-@@ -4145,3 +4145,25 @@
+@@ -4145,3 +4145,26 @@
  endif
  endef
  TARGET_DEVICES += zyxel_wx5600-t0-ubootmod
@@ -306,6 +306,7 @@ index a9005e9d06..c4c56a4fa9 100644
 +  DEVICE_VARIANT := (U-Boot layout)
 +  DEVICE_DTS := mt7981b-qihoo-360t7-uboot
 +  DEVICE_DTS_DIR := ../dts
++  DEVICE_PACKAGES := kmod-mt7915e kmod-mt7981-firmware mt7981-wo-firmware
 +  SUPPORTED_DEVICES += qihoo,360t7-uboot 360,t7
 +  UBINIZE_OPTS := -E 5
 +  BLOCKSIZE := 128k
