@@ -140,6 +140,10 @@ jobs:
             CONFIG_MTK_MT_WIFI \
             CONFIG_MTK_FIRST_IF_MT7981 \
             CONFIG_MTK_CHIP_MT7981 \
+            CONFIG_PACKAGE_kmod-conninfra \
+            CONFIG_MTK_CONNINFRA_APSOC \
+            CONFIG_MTK_CONNINFRA_APSOC_MT7981 \
+            CONFIG_CONNINFRA_AUTO_UP \
             CONFIG_PACKAGE_mtwifi-cfg-ucode \
             CONFIG_PACKAGE_luci-app-mtwifi-cfg \
             CONFIG_PACKAGE_kmod-mediatek_hnat \
@@ -158,6 +162,8 @@ jobs:
             || { echo "kmod-mediatek_hnat 未被启用"; exit 1; }
           grep -q "^CONFIG_MTK_CHIP_MT7981=y$" .config \
             || { echo "MTK_CHIP_MT7981 未选中"; exit 1; }
+          grep -q "^CONFIG_MTK_CONNINFRA_APSOC_MT7981=y$" .config \
+            || { echo "CONNINFRA APSOC MT7981 未选中"; exit 1; }
           for pkg in mtwifi-cfg-ucode luci-app-mtwifi-cfg; do
             grep -q "^CONFIG_PACKAGE_${pkg}=y$" .config \
               || { echo "WiFi 包 ${pkg} 未被启用"; exit 1; }
