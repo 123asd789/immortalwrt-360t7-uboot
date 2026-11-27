@@ -37,7 +37,7 @@ concurrency:
 
 env:
   TZ: Asia/Shanghai
-  UPSTREAM_REPO: chasey-dev/immortalwrt-mt798x-rebase
+  UPSTREAM_REPO: 123asd789/immortalwrt-mt798x-rebase
 
 jobs:
   build:
@@ -239,7 +239,7 @@ jobs:
 
           - 编译日期：${{ steps.date.outputs.date }}
           - 分区布局：`${{ inputs.layout || 'uboot-108m' }}`
-          - 上游源码：chasey-dev/immortalwrt-mt798x-rebase @ ${{ steps.upstream.outputs.ref }} (${{ steps.upstream.outputs.sha }})
+          - 上游源码：123asd789/immortalwrt-mt798x-rebase（含 hnat 补充） @ ${{ steps.upstream.outputs.ref }} (${{ steps.upstream.outputs.sha }})
           - 固件版本：ImmortalWrt 25.12
 
           ### 本次布局的文件
