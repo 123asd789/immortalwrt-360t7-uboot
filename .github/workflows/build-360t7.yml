@@ -183,13 +183,14 @@ jobs:
           cd openwrt
           make -j"$(nproc)" 2>&1 | tee build.log
 
-      - name: Show detailed error (on failure)
+      - name: Show error tail (on failure)
         if: failure() && steps.upstream.outputs.need == 'true'
         run: |
           set -uo pipefail
-          [ -f openwrt/.config ] || { echo "no .config, failure happened before compile"; exit 0; }
-          cd openwrt
-          make -j1 V=s 2>&1 | tail -n 250 || true
+          [ -f openwrt/build.log ] || { echo "no build.log"; exit 0; }
+          tail -n 300 openwrt/build.log
+          echo "--- matching errors ---"
+          grep -nE "Error [0-9]+|error:|\\*\\*\\*" openwrt/build.log | tail -n 40 || true
 
       - name: Collect images
         if: steps.upstream.outputs.need == 'true'
