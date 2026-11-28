@@ -185,12 +185,8 @@ jobs:
           echo "--- matching errors ---"
           grep -nE "Error [0-9]+|error:|\\*\\*\\*" openwrt/build.log | tail -n 40 || true
           cd openwrt || exit 0
-          echo "=== verbose retry: conninfra ==="
-          make package/mtk/drivers/conninfra/compile V=s 2>&1 | tail -n 240 || true
-          echo "=== verbose retry: warp ==="
-          make package/mtk/drivers/warp/compile V=s 2>&1 | tail -n 180 || true
-          echo "=== verbose retry: mt_wifi ==="
-          make package/mtk/drivers/mt_wifi/compile V=s 2>&1 | tail -n 240 || true
+          echo "=== verbose retry: mt76 ==="
+          make package/kernel/mt76/compile V=s 2>&1 | tail -n 320 || true
 
       - name: Collect images
         if: steps.upstream.outputs.need == 'true'
